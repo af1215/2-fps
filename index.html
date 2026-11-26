@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>100칸 방 FPS</title>
+<style>
+:root{--bg:#dfe6ee;--fg:#1a1a1a;--card:#fff;--mut:#666;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15161a;--fg:#eee;--card:#22242b;--mut:#9aa}}
+:root[data-theme="dark"]{--bg:#15161a;--fg:#eee;--card:#22242b;--mut:#9aa}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+canvas{display:block;width:100%;height:100%}
+#dot{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ff2a2a;box-shadow:0 0 0 1px #000a;pointer-events:none}
+.hud{position:fixed;font-size:13px;background:#0008;color:#fff;padding:6px 10px;border-radius:8px}
+#st{left:8px;top:8px;line-height:1.5}#hp{left:8px;bottom:8px}#am{right:8px;bottom:8px;text-align:right;line-height:1.5}
+#msg{left:50%;top:14%;transform:translateX(-50%);font-weight:700;display:none}
+#red{position:fixed;inset:0;background:#f003;opacity:0;pointer-events:none;transition:opacity .25s}
+#menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#000d;color:#fff;z-index:10;text-align:center}
+#menu h1{margin:0 0 8px;font-size:30px}
+#menu button{width:min(80vw,320px);padding:14px;font-size:18px;border:0;border-radius:12px;background:#2f7de1;color:#fff;cursor:pointer}
+#menu button small{display:block;font-size:12px;opacity:.8;margin-top:2px}
+#menu button.off{background:#555}
+#tut{position:fixed;inset:0;display:none;background:#000e;color:#fff;z-index:11;overflow:auto;padding:16px;box-sizing:border-box}
+.tw{max-width:560px;margin:auto;text-align:left;line-height:1.75;font-size:14px}
+.tw h2{text-align:center;margin:6px 0 12px}.tw h3{margin:14px 0 4px;color:#ffd84a;font-size:15px}
+.tw b{background:#fff2;border:1px solid #fff5;border-radius:5px;padding:0 6px;font-family:monospace;font-weight:600}
+.tw button{display:block;margin:16px auto 8px;padding:10px 28px;font-size:16px;border:0;border-radius:10px;background:#2f7de1;color:#fff;cursor:pointer}
+#tg{position:fixed;left:50%;top:12px;transform:translateX(-50%);display:none;background:#000b;color:#fff;padding:10px 16px;border-radius:12px;font-size:15px;line-height:1.6;text-align:center;max-width:90vw;z-index:20;pointer-events:none}
+#tg b{color:#ffd84a}
+#win{position:fixed;inset:0;display:none;background:#000a;color:#fff;font-size:34px;font-weight:800;text-align:center;padding-top:25vh;line-height:1.5;pointer-events:none}
+#scope{position:fixed;inset:0;display:none;pointer-events:none;background:radial-gradient(circle at center,transparent 30vmin,#000 30.5vmin)}
+#shop{position:fixed;inset:0;background:#000b;display:none;overflow:auto;padding:12px;box-sizing:border-box}
+#shop h2{color:#fff;margin:4px 0 10px}
+.cols{display:flex;gap:10px;flex-wrap:wrap}
+.col{flex:1;min-width:230px}.col h3{color:#fff;margin:6px 0}
+.g{background:var(--card);border-radius:10px;padding:8px 10px;margin-bottom:8px;font-size:13px;line-height:1.5}
+.g small{color:var(--mut)}
+.g button{margin-top:4px;padding:4px 10px;border:0;border-radius:6px;background:#2f7de1;color:#fff;cursor:pointer}
+.g button:disabled{background:#888;cursor:default}.g.eq{outline:2px solid #3c3}
+</style></head><body>
+<div class="hud" id="st"></div><div class="hud" id="hp"></div><div class="hud" id="am"></div>
+<div class="hud" id="msg"></div><div id="scope"></div><div id="tg"></div><div id="win"></div>
+<div id="menu"><h1>🔫 100칸 방 FPS</h1>
+<button id="rs" data-m="resume" style="display:none">▶ 계속하기</button>
+<button data-m="practice">🎯 연습장<small>움직이는 표적 · 코인 무제한 · 총 마음껏 시험</small></button>
+<button data-m="ai">🤖 AI와 대전<small>13라운드 선승 · AI도 총을 삽니다</small></button>
+<button data-m="tut" style="background:#3a8a5a">📖 튜토리얼<small>직접 해 보며 배우기</small></button>
+<button data-m="human">👥 사람과 대전<small>온라인 자동 매칭 (같이 접속한 사람과)</small></button>
+<div id="mn" style="min-height:20px;font-size:13px;color:#ffd84a"></div>
+<button id="cx" data-m="cancel" style="display:none;background:#a33">✖ 찾기 취소</button></div>
+<div id="tut"><div class="tw"><h2>📖 튜토리얼</h2>
+<h3>이동 · 시점</h3>
+<b>W</b> <b>A</b> <b>S</b> <b>D</b> 앞 / 왼쪽 / 뒤 / 오른쪽 이동<br><b>Shift</b> + <b>W</b> 달리기 (달리는 동안에는 쎠 수 없어요)<br><b>←</b> <b>→</b> 좌우 회전 · <b>↑</b> <b>↓</b> 위아래 보기
+<h3>사격</h3>
+<b>Space</b> 또는 마우스 클릭: 발사 (빨간 점이 조준선)<br><b>Backspace</b> 재장전 · <b>Q</b> 가진 총 바꾸기<br><b>Enter</b> 저격총 줌 켜기/끄기 (줌 중에는 느리게 움직여요)<br>쏘면 조준선이 위로 튀다가, 멈추면 원래 위치로 돌아옵니다. 연사할수록 많이 튀니 끊어서 쎴보세요.
+<h3>상점 · 메뉴</h3>
+<b>B</b> 상점 열기/닫기: 코인으로 총을 사고 장착합니다 (권총·소총·저격총 각 3자루)<br><b>Esc</b> 메뉴로 돌아가기 (게임이 멈춥니다)
+<h3>피해 규칙</h3>
+머리 <b>×2</b> · 몸통 <b>×1</b> · 다리 <b>×0.6</b>. 맞히면 상대 머리 위에 체력 게이지가 잠깐 나타납니다. 장애물(갈색 상자) 뒤에 숨으면 총알을 막아 줍니다.
+<h3>게임 규칙 (AI 대전)</h3>
+상대를 한 번 잡으면 1라운드를 따고, <b>13라운드를 먼저 따면 승리</b>입니다.<br>라운드 승리 +300💰, 패배 +150💰 / 경기 승리 +1000💰, 패배 +500💰. AI도 돈으로 더 좋은 총을 사니 매 라운드 상대 무기를 확인하세요.
+<h3>연습장</h3>
+표적이 나를 쏘지 않고, 코인이 무제한이라 모든 총을 마음껏 사서 반동과 재장전을 연습할 수 있습니다.
+<button onclick="document.getElementById('tut').style.display='none'">닫기</button></div></div><div id="dot"></div><div id="red"></div>
+<div id="shop"><h2>🛒 상점 <small style="font-weight:400;font-size:13px">(B 또는 Esc로 닫기) · 피해: 머리 ×2 · 몸통 ×1 · 다리 ×0.6</small></h2><div class="cols" id="cols"></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>if(typeof mqtt==="undefined")document.write('<script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"><\/script>')</script>
+<script>
+// ---- 총기: 종류별 3자루 ----
+const GUNS=[
+{id:"p1",t:"권총",n:"기본 권총",d:20,cd:350,a:0,sp:.02,f:70,p:0},
+{id:"p2",t:"권총",n:"데저트 권총",d:45,cd:650,a:0,sp:.02,f:70,p:300},
+{id:"p3",t:"권총",n:"자동 권총",d:11,cd:110,a:1,sp:.05,f:70,p:350},
+{id:"r1",t:"소총",n:"기본 소총",d:14,cd:110,a:1,sp:.04,f:70,p:400},
+{id:"r2",t:"소총",n:"돌격 소총",d:20,cd:140,a:1,sp:.03,f:70,p:700},
+{id:"r3",t:"소총",n:"카빈",d:9,cd:70,a:1,sp:.06,f:70,p:500},
+{id:"s1",t:"저격총",n:"볼트 저격총",d:100,cd:1400,a:0,sp:0,f:22,p:800},
+{id:"s2",t:"저격총",n:"반자동 저격총",d:60,cd:700,a:0,sp:0,f:28,p:1000},
+{id:"s3",t:"저격총",n:"경량 저격총",d:75,cd:1000,a:0,sp:0,f:35,p:900}];
+const G=Object.fromEntries(GUNS.map(g=>[g.id,g]));
+const MAG={p1:12,p2:7,p3:20,r1:30,r2:30,r3:40,s1:5,s2:10,s3:8},ammo=id=>S.ammo[id]??MAG[id];
+const RK={p1:.02,p2:.05,p3:.015,r1:.018,r2:.025,r3:.012,s1:.09,s2:.06,s3:.07}; // 조준 반동(라디안)
+const S={coins:500,own:["p1"],eq:"p1",hp:100,kills:0,ammo:{}};
+// ---- 장면 ----
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9fc4e8);
+const cam=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.05,100);scene.add(cam);
+const r=new THREE.WebGLRenderer({antialias:true});r.setSize(innerWidth,innerHeight);document.body.appendChild(r.domElement);
+scene.add(new THREE.AmbientLight(0xffffff,.7));
+const sun=new THREE.DirectionalLight(0xffffff,.6);sun.position.set(5,10,3);scene.add(sun);
+const OB=[[2,2],[5,3],[7,6],[3,7],[6,8],[8,2]],OBM=[];
+for(let x=0;x<10;x++)for(let z=0;z<10;z++){
+  const t=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshLambertMaterial({color:(x+z)%2?0x8a9a6b:0x9db07c}));
+  t.rotation.x=-Math.PI/2;t.position.set(x+.5,0,z+.5);scene.add(t)}
+OB.forEach(([x,z])=>{const b=new THREE.Mesh(new THREE.BoxGeometry(.9,1,.9),new THREE.MeshLambertMaterial({color:0x7a5c3a}));
+  b.position.set(x+.5,.5,z+.5);scene.add(b);OBM.push(b)});
+const blocked=(x,z)=>x<.2||z<.2||x>9.8||z>9.8||OB.some(([a,b])=>x>a-.1&&x<a+1.1&&z>b-.1&&z<b+1.1);
+// ---- 상대 (사람 2명 중 나 말고 1명) ----
+const bot=new THREE.Group(),M=c=>new THREE.MeshLambertMaterial({color:c});
+const HIT=[],HEADP=[],Bx=(w,h,l)=>new THREE.BoxGeometry(w,h,l);
+const mesh=(g,c,x,y,z,par)=>{const m=new THREE.Mesh(g,c.isMaterial?c:M(c));m.position.set(x,y,z);par.add(m);HIT.push(m);return m};
+const upper=new THREE.Group();bot.add(upper);
+const shirt=M(0x2f6f4f),skin=M(0xe8b98f),pants=M(0x2c3550);
+const body=mesh(Bx(.3,.34,.17),shirt,0,.58,0,upper);
+mesh(Bx(.32,.07,.18),0x1d1d1d,0,.4,0,upper);mesh(Bx(.07,.06,.07),skin,0,.77,0,upper);
+const head=mesh(Bx(.17,.19,.17),skin,0,.88,0,upper);
+const hair=mesh(Bx(.185,.07,.185),0x3b2a1e,0,.97,-.005,upper);
+HEADP.push(head,hair,mesh(Bx(.03,.03,.01),0x111,-.04,.89,.088,upper),mesh(Bx(.03,.03,.01),0x111,.04,.89,.088,upper));
+const limb=(x,y,par,col,w,l)=>{const g=new THREE.Group();g.position.set(x,y,0);par.add(g);mesh(Bx(w,l,w+.01),col,0,-l/2,0,g);return g};
+const legL=limb(.08,.42,bot,pants,.11,.4),legR=limb(-.08,.42,bot,pants,.11,.4);
+[legL,legR].forEach(l=>mesh(Bx(.12,.05,.17),0x1b1b1b,0,-.42,.03,l));
+const LEGP=[...legL.children,...legR.children]; // 다리(다리+신발) 판정
+const armR=limb(-.2,.74,upper,shirt,.08,.3),armL=limb(.2,.74,upper,shirt,.08,.3);
+[armR,armL].forEach(a=>mesh(Bx(.07,.07,.07),skin,0,-.32,0,a));
+const botGun=mesh(Bx(.05,.3,.06),0x1a1a1a,0,-.46,0,armR);mesh(Bx(.04,.1,.05),0x1a1a1a,0,-.36,.05,armR);
+scene.add(bot);
+let ph=0,aim=0;
+function animBot(dt,dd){
+  const mx=B.tx-B.x,mz=B.tz-B.z,moving=Math.hypot(mx,mz)>.15,want=(mode=="ai"&&dd<({권총:6,소총:8,저격총:14})[G[B.eq].t])||(mode=="human"&&(B.aimT||0)>0),k=Math.min(1,dt*12);
+  aim+=((want?1:0)-aim)*Math.min(1,dt*6);
+  const ty=want?Math.atan2(p.x-B.x,p.z-B.z):moving?Math.atan2(mx,mz):bot.rotation.y;
+  let df=ty-bot.rotation.y;df=Math.atan2(Math.sin(df),Math.cos(df));bot.rotation.y+=df*Math.min(1,dt*8);
+  if(moving)ph+=dt*9;const sw=moving?Math.sin(ph):0;
+  legL.rotation.x+=(sw*.6-legL.rotation.x)*k;legR.rotation.x+=(-sw*.6-legR.rotation.x)*k;
+  armR.rotation.x+=((-sw*.5)*(1-aim)-1.45*aim-armR.rotation.x)*k;armL.rotation.x+=((sw*.5)*(1-aim)-1.25*aim-armL.rotation.x)*k;
+  upper.position.y=Math.abs(sw)*.015;
+  B.hf=Math.max(0,(B.hf||0)-dt);shirt.emissive.setHex(B.hf>0?0x882222:0)}
+const B={x:8.5,z:8.5,hp:100,tx:8.5,tz:8.5,fire:0};bot.position.set(B.x,0,B.z);
+// ---- 손에 든 총 (표시용) ----
+const vm=new THREE.Group();cam.add(vm);
+const MP=c=>new THREE.MeshPhongMaterial({color:c,shininess:70,specular:0x555555});
+const cyl=(r,l,x,y,z,c)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,l,12),MP(c));m.rotation.x=Math.PI/2;m.position.set(x,y,z);vm.add(m)};
+const box=(w,h,l,x,y,z,c,rx)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,l),MP(c));m.position.set(x,y,z);if(rx)m.rotation.x=rx;vm.add(m)};
+function setVM(){
+  while(vm.children.length)vm.remove(vm.children[0]);
+  vm.position.set(.2,-.2,-.3);vm.rotation.set(0,.04,0);
+  const id=S.eq,K=0x1c1c1c;let tip;
+  if(id[0]=="p"){ // 권총: 슬라이드·프레임·손잡이·방아쇠울·가늠자
+    const L={p1:.2,p2:.27,p3:.22}[id],c={p1:0x2d2d2d,p2:0xa8a8a8,p3:0x3a3f45}[id],w=id=="p2"?.06:.045;
+    box(w,.055,L,0,0,-L/2,c);box(w-.01,.03,L-.04,0,-.04,-L/2+.02,K);
+    box(.04,.11,.05,0,-.1,-.03,K,.25);box(.01,.035,.06,0,-.06,-.1,K);
+    box(.01,.015,.015,0,.037,-L+.02,K);box(.025,.015,.015,0,.037,-.02,K);
+    if(id=="p3"){box(.035,.14,.045,0,-.14,-.05,K,.25);box(.03,.03,.04,0,.0,-L-.02,K)}
+    if(id=="p2")cyl(.012,.05,0,0,-L-.02,K);
+    tip=L+.04
+  }else if(id[0]=="r"){ // 소총: 리시버·총열·핸드가드·개머리판·탄창·조준기
+    const o={r1:{b:.3,c:0x333b2e,st:.2},r2:{b:.36,c:0x20242b,st:.22},r3:{b:.2,c:0x3a3a3a,st:.12}}[id];
+    box(.06,.08,.34,0,0,-.17,o.c);cyl(.012,o.b,0,.015,-.34-o.b/2,K);
+    box(.055,.06,.2,0,-.005,-.42,K);box(.05,.085,o.st,0,-.01,.05+o.st/2,o.c);
+    box(.04,.1,.05,0,-.08,0,K,.3);box(.04,.14,.065,0,-.1,-.2,K,id=="r2"?.25:0);
+    box(.012,.04,.012,0,.06,-.5,K);box(.02,.03,.02,0,.055,-.02,K);
+    if(id=="r2"){box(.04,.045,.09,0,.075,-.15,K);box(.03,.03,.005,0,.075,-.2,0x66ccff)}
+    if(id=="r3")box(.035,.2,.05,0,-.14,-.2,K);
+    tip=.34+o.b+.02
+  }else{ // 저격총: 긴 총열·스코프·볼트·받침대
+    const o={s1:{c:0x6b4a2b,b:.62,sc:.28},s2:{c:0x23262b,b:.55,sc:.34},s3:{c:0x58633b,b:.7,sc:.24}}[id];
+    box(.055,.08,.32,0,0,-.16,o.c);cyl(id=="s3"?.01:.015,o.b,0,.01,-.32-o.b/2,K);
+    box(.05,.1,.3,0,-.02,.15,o.c);box(.045,.03,.14,0,.06,.18,o.c);box(.04,.1,.045,0,-.08,0,K,.3);
+    cyl(.03,o.sc,0,.085,-.14,K);cyl(.038,.03,0,.085,-.14-o.sc/2,K);cyl(.032,.025,0,.085,-.14+o.sc/2,K);
+    box(.012,.03,.02,0,.055,-.1,K);box(.012,.03,.02,0,.055,-.2,K);
+    cyl(.02,.06,0,.01,-.32-o.b-.03,K);
+    if(id=="s1")box(.05,.015,.015,.04,.03,-.12,K);
+    if(id=="s2")box(.035,.1,.05,0,-.08,-.22,K);
+    if(id=="s3"){box(.01,.1,.01,-.03,-.06,-.5,K,.4);box(.01,.1,.01,.03,-.06,-.5,K,-.4)}
+    tip=.32+o.b+.06
+  }
+  // 손과 소매: 양손으로 총을 잡고 있는 모습
+  const hd=(w,h,l,x,y,z,c,rx,ry)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,l),M(c));m.position.set(x,y,z);m.rotation.set(rx||0,ry||0,0);vm.add(m)};
+  const SK=0xe8b98f,SL=0x2f6f4f;
+  // 총 디테일: 홈, 레일, 소염기, 터렛 등
+  const GR=0x555a60,TR=0x0e0e0e;
+  if(id[0]=="p"){
+    const L={p1:.2,p2:.27,p3:.22}[id];
+    for(let i=0;i<4;i++)box(.047,.045,.008,0,.003,-.03-i*.014,TR);
+    box(.012,.03,.02,0,-.06,-.07,TR);box(.006,.02,.04,0,-.055,-.1,GR);box(.01,.012,.03,0,.032,-.012,GR);
+    box(.03,.012,.025,0,-.025,-L+.01,GR);if(id=="p3")box(.02,.02,.03,0,.04,-L+.04,TR);
+  }else if(id[0]=="r"){
+    box(.03,.012,.3,0,.046,-.17,TR);for(let i=0;i<6;i++)box(.032,.014,.008,0,.049,-.05-i*.045,GR);
+    box(.062,.02,.05,0,.01,-.2,GR);box(.015,.02,.04,.034,0,-.1,TR);cyl(.018,.05,0,.015,-tip+.01,GR);
+    for(let i=0;i<4;i++)box(.058,.062,.006,0,-.005,-.35-i*.045,GR);
+    box(.05,.09,.012,0,-.01,.05+({r1:.2,r2:.22,r3:.12}[id]),TR);
+  }else{
+    cyl(.034,.02,0,.085,-.2,GR);cyl(.034,.02,0,.085,-.09,GR);
+    box(.02,.02,.02,.04,.1,-.15,GR);box(.02,.02,.02,0,.12,-.15,GR);
+    box(.05,.012,.14,0,.07,.2,TR);box(.05,.02,.012,0,-.01,.3,TR);
+  }
+  if(id[0]=="p"){
+    hd(.06,.09,.07,0,-.1,-.01,SK,.25);hd(.05,.05,.3,.02,-.17,.16,SL,-.25,-.1);
+    hd(.045,.08,.06,-.035,-.11,-.02,SK,.25);hd(.05,.05,.3,-.06,-.18,.14,SL,-.25,.2);
+  }else{
+    const fz=id[0]=="r"?-.4:-.3;
+    hd(.06,.1,.06,0,-.12,0,SK,.3);hd(.05,.05,.3,.02,-.2,.15,SL,-.3,-.1);
+    hd(.065,.07,.08,0,-.04,fz,SK);hd(.055,.055,.45,-.05,-.1,fz+.2,SL,-.15,.2);
+  }
+  const fl=new THREE.Mesh(new THREE.BoxGeometry(.07,.07,.05),new THREE.MeshBasicMaterial({color:0xffd84a}));
+  fl.position.set(0,0,-tip-.03);fl.visible=false;vm.add(fl);vm.userData.fl=fl}
+// ---- 상태/입력 ----
+const p={x:.5,z:.5,a:Math.PI/4,pt:0},keys={};let shop=0,prevF=0,lastShot=0,hitT=0,zoom=0,rl=0,menu=1,mode="ai",kick=0,flT=0,bobT=0,bobA=0,lastA=0,swX=0,rcP=0,rcY=0,rcT=0,spr=0,sprA=0;const zm=()=>G[S.eq].f<40&&zoom;
+const $=id=>document.getElementById(id);
+function msg(t){const m=$("msg");m.textContent=t;m.style.display="block";clearTimeout(msg.t);msg.t=setTimeout(()=>m.style.display="none",1400)}
+addEventListener("keydown",e=>{
+  if(menu)return;
+  if(e.code=="Escape"&&!shop){if(mode=="human")leaveMatch("대전에서 나갔어요");else openMenu();return}
+  if(e.code=="KeyB"||(e.code=="Escape"&&shop)){toggleShop();return}
+  if((e.code=="Enter"||e.code=="NumpadEnter")&&!e.repeat&&!shop&&G[S.eq].t=="저격총"){zoom=!zoom;T.zoom++;msg(zoom?"줌 ON":"줌 OFF")}
+  if(e.code=="Backspace"){e.preventDefault();if(!shop)startReload()}
+  keys[e.code]=1;if(e.code.startsWith("Arrow")||e.code=="Space")e.preventDefault();
+  if(e.code=="KeyQ"&&!shop){const i=S.own.indexOf(S.eq);S.eq=S.own[(i+1)%S.own.length];zoom=0;rl=0;setVM();T.q++;msg(G[S.eq].n)}});
+addEventListener("keyup",e=>keys[e.code]=0);
+addEventListener("mousedown",e=>{if(!shop&&!menu)keys.Mouse=1});addEventListener("mouseup",()=>keys.Mouse=0);
+function toggleShop(){shop=!shop;if(shop)T.shop++;Object.keys(keys).forEach(k=>keys[k]=0);$("shop").style.display=shop?"block":"none";if(shop)drawShop()}
+function drawShop(){
+  $("cols").innerHTML=["권총","소총","저격총"].map(t=>`<div class="col"><h3>${t}</h3>`+GUNS.filter(g=>g.t==t).map(g=>{
+    const own=S.own.includes(g.id),eq=S.eq==g.id;
+    return `<div class="g ${eq?"eq":""}"><b>${g.n}</b> <small>${g.a?"연사":"단발"}</small><br>피해 ${g.d} · 간격 ${g.cd}ms<br>`+
+    (eq?"<small>장착 중</small>":own?`<button data-e="${g.id}">장착</button>`:`<button data-b="${g.id}" ${S.coins<g.p?"disabled":""}>구매 ${g.p}💰</button>`)+`</div>`}).join("")+"</div>").join("");
+  $("cols").insertAdjacentHTML("afterbegin",`<div style="width:100%;color:#fff">보유 코인: <b>${S.coins}</b>💰</div>`);
+  $("cols").querySelectorAll("button").forEach(b=>b.onclick=()=>{
+    const e=b.dataset.e,y=b.dataset.b;
+    if(y&&S.coins>=G[y].p){S.coins-=G[y].p;S.own.push(y);S.eq=y;T.buy++}else if(e)S.eq=e;
+    zoom=0;rl=0;setVM();drawShop()})}
+// ---- 재장전 / 상대 체력 게이지 ----
+const RLT={권총:1.2,소총:1.8,저격총:2.4};
+function startReload(){const g=G[S.eq];if(rl||ammo(g.id)>=MAG[g.id])return;const n=performance.now();rl={t0:n,end:n+RLT[g.t]*1000,id:g.id};msg("재장전...")}
+const hb=new THREE.Group(),hbf=new THREE.Mesh(new THREE.PlaneGeometry(.5,.06),new THREE.MeshBasicMaterial({color:0x33cc33}));
+const hbb=new THREE.Mesh(new THREE.PlaneGeometry(.54,.1),new THREE.MeshBasicMaterial({color:0x000000}));hbb.position.z=-.002;hb.add(hbb,hbf);hb.visible=false;scene.add(hb);
+// ---- 라운드: 잡을 때마다 1점, 13점 선취 ----
+const WIN=13;let over=0,rstart=0;B.kills=0;B.coins=500;B.own=["p1"];B.eq="p1";
+// ---- AI도 돈으로 총을 산다 ----
+const BGS={권총:.55,소총:1.1,저격총:1.6};
+function setBotGun(){const s=BGS[G[B.eq].t];botGun.scale.y=s;botGun.position.y=-.31-.15*s}
+function botBuy(){if(mode!="ai")return;const cur=G[B.eq],o=GUNS.filter(g=>!B.own.includes(g.id)&&g.p<=B.coins&&g.p>cur.p);
+  if(!o.length||Math.random()<.2)return;
+  o.sort((a,b)=>b.p-a.p);const g=o[Math.random()<.65?0:(Math.random()*o.length)|0];
+  B.coins-=g.p;B.own.push(g.id);B.eq=g.id;setBotGun()}
+setBotGun();botBuy();
+function newRound(m){
+  rstart=Date.now();S.hp=100;B.hp=100;B.show=0;rl=0;const sp0=(mode=="human"&&role)?[9.5,9.5,Math.PI*1.25]:[.5,.5,Math.PI/4];p.x=sp0[0];p.z=sp0[1];p.a=sp0[2];p.pt=0;S.ammo={};
+  do{B.x=1+Math.random()*8;B.z=1+Math.random()*8}while(blocked(B.x,B.z)||Math.hypot(B.x-p.x,B.z-p.z)<5);B.tx=B.x;B.tz=B.z;if(mode=="human"&&B.rx!=null){B.x=B.rx;B.z=B.rz}botBuy();msg(m)}
+function endRound(w){
+  if(over)return;
+  if(mode!="ai"&&mode!="human"){if(w){S.kills++;msg("처치! "+S.kills)}S.hp=100;B.hp=100;B.show=0;
+    do{B.x=1+Math.random()*8;B.z=1+Math.random()*8}while(blocked(B.x,B.z)||Math.hypot(B.x-p.x,B.z-p.z)<4);B.tx=B.x;B.tz=B.z;if(mode=="tut"){B.x=6.5;B.z=1.5;B.tx=B.x;B.tz=B.z}return}
+  if(w){S.kills++;S.coins+=300;B.coins+=150}else{B.kills++;B.coins+=300;S.coins+=150;if(mode=="human"&&MR)MR.emit("dead",{}).catch(()=>{})}
+  if(S.kills>=WIN||B.kills>=WIN){over=1;
+    $("win").innerHTML=(w?"🏆 승리!":"💀 패배")+`<br>${S.kills} : ${B.kills}<br><small>잠시 후 새 경기가 시작됩니다</small>`;S.coins+=w?1000:500;B.coins+=w?500:1000;$("win").innerHTML+=`<br>보너스 ${w?1000:500}💰`;$("win").style.display="block";
+    setTimeout(()=>{S.kills=0;B.kills=0;over=0;$("win").style.display="none";newRound("새 경기 시작!")},3500);return}
+  newRound((w?"라운드 승리! +300💰":"라운드 패배 +150💰")+`  ${S.kills} : ${B.kills}`)}
+// ---- 게임하며 배우는 튜토리얼 ----
+const T={dist:0,turn:0,spr:0,shots:0,hits:0,head:0,rl:0,q:0,zoom:0,shop:0,buy:0};
+let T0={...T},ti=0,tx=0,tz=0,ta=0,tdone=0;
+const tp=()=>{p.x=.5;p.z=1.5;p.a=0;p.pt=0;tx=p.x;tz=p.z;ta=p.a};
+const dl=k=>T[k]-T0[k];
+const TS=[
+{t:"<b>W A S D</b> 로 돌아다녀 보세요",ok:()=>dl("dist")>=4},
+{t:"<b>← →</b> 방향키로 시점을 돌려 보세요",ok:()=>dl("turn")>=2.5},
+{t:"<b>Shift</b>를 누른 채 <b>W</b>로 달려 보세요 (달리는 중엔 쎠 수 없어요)",ok:()=>dl("spr")>=1.5},
+{t:"앞의 표적을 <b>Space</b> 또는 클릭으로 쎴서 맞혀 보세요 (빨간 점이 조준선)",init:tp,ok:()=>dl("hits")>=1},
+{t:"머리를 맞히면 피해 ×2! 표적의 <b>머리</b>를 조준해 맞혀 보세요",ok:()=>dl("head")>=1},
+{t:"탄이 줄었어요. <b>Backspace</b>로 재장전해 보세요",init:()=>{S.ammo[S.eq]=Math.min(ammo(S.eq),4)},ok:()=>dl("rl")>=1},
+{t:"소총과 저격총을 받았어요. <b>Q</b>로 총을 바꿔 보세요",init:()=>{["r1","s1"].forEach(i=>{if(!S.own.includes(i))S.own.push(i)})},ok:()=>dl("q")>=1},
+{t:"저격총이에요! <b>Enter</b>로 줌을 켜 보세요",init:()=>{S.eq="s1";zoom=0;rl=0;setVM()},ok:()=>dl("zoom")>=1},
+{t:"<b>B</b>로 상점을 열어 총을 하나 사 보세요 (코인 지급)",ok:()=>dl("buy")>=1},
+{t:"<b>B</b> 또는 <b>Esc</b>로 상점을 닫으세요",ok:()=>!shop}];
+function tutStep(i){ti=i;T0={...T};if(TS[i]&&TS[i].init)TS[i].init()}
+function tutStart(){for(const k in T)T[k]=0;T0={...T};tdone=0;B.x=6.5;B.z=1.5;B.tx=B.x;B.tz=B.z;bot.rotation.y=-Math.PI/2;S.own=["p1"];S.eq="p1";setVM();tp();tutStep(0)}
+function tutUpdate(dt){
+  T.dist+=Math.hypot(p.x-tx,p.z-tz);tx=p.x;tz=p.z;
+  T.turn+=Math.abs(Math.atan2(Math.sin(p.a-ta),Math.cos(p.a-ta)));ta=p.a;if(spr)T.spr+=dt;
+  if(B.hp>0&&B.hp<40)B.hp=100;
+  const s=TS[ti],g=$("tg");
+  if(!s){g.innerHTML="🎉 <b>튜토리얼 완료!</b><br>곧 메뉴로 돌아갑니다";if(!tdone){tdone=1;setTimeout(openMenu,3500)}return}
+  g.innerHTML=`튜토리얼 ${ti+1} / ${TS.length}<br>${s.t}`;
+  if(s.ok()){msg("✅ 좋아요!");tutStep(ti+1)}}
+// ---- 온라인 대전: 같이 접속한 사람끼리 자동 매칭 (room) ----
+let R=null,MR=null,role=0,queueing=0,sendT=0;
+const myId=(Math.random().toString(36).slice(2,10).replace(/[^a-z0-9]/g,"a"))||"anon";
+(async()=>{try{if(typeof claude!="undefined"&&claude.use)R=await claude.use("room")}catch(e){R=null}
+  if(!R&&typeof mqtt!="undefined"){try{R=mkMqtt()}catch(e){R=null}}
+  if(R)R.onPeers(()=>checkQueue())})();
+// 로그인 없이 쓰는 온라인 연결: 공개 MQTT 브로커를 통해 매칭·대전 메시지를 주고받습니다 (room과 같은 인터페이스)
+function mkMqtt(){
+  const URLS=["wss://broker.hivemq.com:8884/mqtt","wss://broker.emqx.io:8084/mqtt"];
+  let ui=0,cli=null,conn=false;const subs=new Map();
+  function connect(){
+    cli=mqtt.connect(URLS[ui],{reconnectPeriod:2000,connectTimeout:6000,clientId:"fps_"+myId+Math.random().toString(16).slice(2,6)});
+    cli.on("connect",()=>{conn=true;subs.forEach((h,t)=>cli.subscribe(t))});
+    cli.on("close",()=>{conn=false});cli.on("error",()=>{});
+    cli.on("message",(t,buf)=>{const h=subs.get(t);if(!h)return;let o;try{o=JSON.parse(buf.toString())}catch(e){return}
+      if(o&&typeof o=="object"&&typeof o.id=="string"&&/^[a-z0-9]{1,10}$/.test(o.id)&&o.id!=myId)h(o)})}
+  connect();setTimeout(()=>{if(!conn){ui=1-ui;try{cli.end(true)}catch(e){}connect()}},8000);
+  const sub=(t,h)=>{subs.set(t,h);if(conn)cli.subscribe(t)};
+  const unsub=t=>{subs.delete(t);try{cli.unsubscribe(t)}catch(e){}};
+  const pub=(t,o,q)=>{try{cli.publish(t,JSON.stringify(o),{qos:q||0})}catch(e){}};
+  const LB="fps100room/v1/lobby",mine={},seen=new Map(),lh=[];
+  const lfire=()=>lh.forEach(f=>{try{f({peers:R0.peers(),joined:[],left:[],updated:[]})}catch(e){}});
+  sub(LB,o=>{if(o.p&&typeof o.p=="object"){seen.set(o.id,{t:Date.now(),p:{q:o.p.q,id:o.id,m:o.p.m}});lfire()}});
+  setInterval(()=>{pub(LB,{id:myId,p:mine});let ch=0;const n=Date.now();seen.forEach((v,k)=>{if(n-v.t>3500){seen.delete(k);ch=1}});if(ch)lfire()},1000);
+  function mkRoom(name){
+    const TP="fps100room/v1/m/"+name,me={},hs=[],ev=new Map();let remote=null,seenAt=0;
+    const peersF=()=>{const a=[{isMe:true,sameTab:true,kind:"viewer",presence:{...me}}];if(remote)a.push({isMe:false,kind:"viewer",presence:remote});return a};
+    const fireP=l=>hs.forEach(f=>{try{f({peers:peersF(),joined:[],left:l||[],updated:[]})}catch(e){}});
+    sub(TP,o=>{seenAt=Date.now();
+      if(o.k=="bye"){if(remote){remote=null;fireP([{isMe:false}])}return}
+      if(o.k=="p"&&o.pr&&typeof o.pr=="object"){remote=o.pr;fireP()}
+      else if(o.k=="e"&&typeof o.topic=="string"){const l=ev.get(o.topic);if(l)l.forEach(f=>{try{f({isMe:false,data:o.data})}catch(e){}})}
+      else if(o.k=="h"&&!remote)remote={}});
+    const hb=setInterval(()=>{pub(TP,{id:myId,k:"h"});if(remote&&Date.now()-seenAt>3000){remote=null;fireP([{isMe:false}])}},500);
+    pub(TP,{id:myId,k:"h"});
+    return{
+      emit(topic,data){pub(TP,{id:myId,k:"e",topic,data},(topic=="hit"||topic=="dead")?1:0);return Promise.resolve()},
+      on(topic,f){let l=ev.get(topic);if(!l)ev.set(topic,l=[]);l.push(f);return()=>{}},
+      presence(patch){for(const k in patch){if(patch[k]==null)delete me[k];else me[k]=patch[k]}pub(TP,{id:myId,k:"p",pr:me});return Promise.resolve()},
+      peers:peersF,onPeers(f){hs.push(f);return()=>{}},connected:()=>conn,
+      leave(){pub(TP,{id:myId,k:"bye"});clearInterval(hb);unsub(TP);return Promise.resolve()}}}
+  const R0={
+    presence(patch){for(const k in patch){if(patch[k]==null)delete mine[k];else mine[k]=patch[k]}pub(LB,{id:myId,p:mine});lfire();return Promise.resolve()},
+    peers(){const a=[{isMe:true,sameTab:true,kind:"viewer",presence:{...mine}}];seen.forEach(v=>a.push({isMe:false,kind:"viewer",presence:v.p}));return a},
+    onPeers(f){lh.push(f);return()=>{}},connected:()=>conn,
+    join(name){return Promise.resolve(mkRoom(name))}};
+  return R0}
+const mnMsg=t=>{$("mn").textContent=t};
+function findMatch(){
+  if(!R){mnMsg("온라인 연결을 쓸 수 없어요. (인터넷 연결을 확인하고 새로고침해 주세요)");return}
+  queueing=1;$("cx").style.display="block";mnMsg("상대를 찾는 중... 다른 사람이 '사람과 대전'을 누르면 바로 연결돼요");
+  R.presence({q:1,id:myId}).catch(()=>{});checkQueue()}
+function cancelQueue(){queueing=0;$("cx").style.display="none";mnMsg("");if(R)R.presence({q:null,id:null}).catch(()=>{})}
+function checkQueue(){
+  if(!queueing||!R)return;
+  const q=R.peers().filter(x=>x.kind=="viewer"&&x.presence&&x.presence.q==1&&typeof x.presence.id=="string"&&/^[a-z0-9]{1,10}$/.test(x.presence.id)).map(x=>x.presence.id).sort();
+  const i=q.indexOf(myId);if(i<0)return;
+  mnMsg("상대를 찾는 중... (대기 중 "+q.length+"명)");
+  const o=i%2==0?q[i+1]:q[i-1];if(!o)return;
+  queueing=0;role=myId<o?0:1;joinMatch("m-"+[myId,o].sort().join("-"))}
+async function joinMatch(name){
+  try{
+    mnMsg("상대를 찾았어요! 연결 중...");
+    await R.presence({q:null,id:null,m:name});
+    MR=await R.join(name);
+    let ok=0;const t0=Date.now();
+    await new Promise(res=>{const tick=()=>{if(MR.peers().length>=2){ok=1;res()}else if(Date.now()-t0>6000)res();else setTimeout(tick,200)};tick()});
+    if(!ok){await MR.leave();MR=null;mnMsg("상대와 연결하지 못했어요. 다시 찾는 중...");findMatch();return}
+    wireMatch();$("cx").style.display="none";mnMsg("");startMode("human")
+  }catch(e){MR=null;$("cx").style.display="none";mnMsg("연결에 실패했어요. 다시 시도해 주세요.")}}
+const fin=v=>typeof v=="number"&&isFinite(v);
+function wireMatch(){
+  MR.on("hit",m=>{if(m.isMe||over||Date.now()-rstart<800)return;const d=Math.min(250,Math.max(0,+(m.data&&m.data.d)||0));S.hp-=d;$("red").style.opacity=1;setTimeout(()=>$("red").style.opacity=0,200)});
+  MR.on("dead",m=>{if(!m.isMe&&!over&&Date.now()-rstart>800)endRound(1)});
+  MR.on("shot",m=>{if(!m.isMe)B.aimT=1.5});
+  MR.onPeers(ch=>{
+    const o=ch.peers.find(x=>!x.isMe);
+    if(!o){if(ch.left.length&&mode=="human"&&MR)leaveMatch("상대가 나갔어요");return}
+    const s=o.presence||{};
+    if(fin(s.x)&&fin(s.z)){B.rx=Math.max(.2,Math.min(9.8,s.x));B.rz=Math.max(.2,Math.min(9.8,s.z))}
+    if(fin(s.a))B.ra=s.a;
+    if(typeof s.eq=="string"&&G[s.eq]&&s.eq!=B.eq){B.eq=s.eq;setBotGun()}
+    if(fin(s.hp)&&Date.now()-rstart>400)B.hp=Math.min(B.hp,s.hp)});
+  if(sendT)clearInterval(sendT);
+  sendT=setInterval(()=>{if(MR&&mode=="human")MR.presence({x:+p.x.toFixed(2),z:+p.z.toFixed(2),a:+p.a.toFixed(2),hp:S.hp,eq:S.eq}).catch(()=>{})},66)}
+function humanSync(dt){
+  if(B.rx==null)return;
+  const k=Math.min(1,dt*14);B.x+=(B.rx-B.x)*k;B.z+=(B.rz-B.z)*k;
+  B.tx=B.x+(B.rx-B.x)*6;B.tz=B.z+(B.rz-B.z)*6;B.aimT=Math.max(0,(B.aimT||0)-dt)}
+function leaveMatch(t){
+  if(sendT){clearInterval(sendT);sendT=0}
+  if(MR){MR.leave().catch(()=>{});MR=null}
+  if(R)R.presence({m:null}).catch(()=>{});
+  mode="ai";started=0;openMenu();mnMsg(t||"")}
+// ---- 메뉴 ----
+let started=0;
+function openMenu(){menu=1;Object.keys(keys).forEach(k=>keys[k]=0);$("rs").style.display=started?"block":"none";$("menu").style.display="flex"}
+function startMode(m){
+  mode=m;menu=0;started=1;queueing=0;if(R&&m!="human")R.presence({q:null,id:null}).catch(()=>{});over=0;$("win").style.display="none";$("menu").style.display="none";
+  S.kills=0;B.kills=0;S.own=["p1"];S.eq="p1";S.ammo={};S.coins=m=="practice"?99999:m=="tut"?1500:500;
+  B.own=["p1"];B.eq="p1";B.coins=500;zoom=0;rl=0;setBotGun();setVM();
+  newRound(m=="practice"?"연습장: 움직이는 표적을 맞혀 보세요":m=="tut"?"튜토리얼을 시작합니다":m=="human"?"온라인 대전 시작! 13라운드 선승":"AI 대전 시작! 13라운드 선승");if(m=="tut")tutStart()}
+document.querySelectorAll("#menu button").forEach(b=>b.onclick=()=>{const m=b.dataset.m;
+  if(m=="human")findMatch();
+  else if(m=="cancel")cancelQueue();
+  else if(m=="resume"){menu=0;$("menu").style.display="none"}
+  else startMode(m)});
+// ---- 사격 ----
+const ray=new THREE.Raycaster();
+function shoot(now){
+  const g=G[S.eq];lastShot=now;S.ammo[g.id]=ammo(g.id)-1;T.shots++;if(mode=="human"&&MR)MR.emit("shot",{}).catch(()=>{});
+  ray.setFromCamera({x:(Math.random()-.5)*g.sp,y:(Math.random()-.5)*g.sp},cam);
+  const h=ray.intersectObjects([...OBM,...HIT])[0];
+  kick=1;flT=.05;rcP=Math.min(.28,rcP+RK[g.id]);rcY+=(Math.random()-.5)*RK[g.id]*.8;rcT=g.t=="저격총"?.3:.12;
+  if(h&&HIT.includes(h.object)){B.hf=.12;B.show=3;T.hits++;if(HEADP.includes(h.object))T.head++;
+    const mul=HEADP.includes(h.object)?2:LEGP.includes(h.object)?.6:1;B.hp-=g.d*mul;if(mode=="human"&&MR)MR.emit("hit",{d:g.d*mul}).catch(()=>{});hitT=150;$("dot").style.background="#fff";
+    msg((mul==2?"헤드샷! ":mul<1?"다리 ":"못통 ")+"-"+Math.round(g.d*mul));
+    if(B.hp<=0&&mode!="human"){endRound(1);return;msg("처치! +150💰");B.hp=100;B.show=0;
+      do{B.x=1+Math.random()*8;B.z=1+Math.random()*8}while(blocked(B.x,B.z)||Math.hypot(B.x-p.x,B.z-p.z)<4);B.tx=B.x;B.tz=B.z}}}
+// ---- 루프 ----
+let last=performance.now(),curF=70;
+function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;
+  if((!shop||mode=="human")&&!over&&!menu){
+    const tr=zm()?.45:1; // 줌 중에는 시점 회전도 천천히
+    if(keys.ArrowLeft)p.a-=2*dt*tr;if(keys.ArrowRight)p.a+=2*dt*tr;
+    if(keys.ArrowUp)p.pt=Math.min(.6,p.pt+1.5*dt*tr);if(keys.ArrowDown)p.pt=Math.max(-.6,p.pt-1.5*dt*tr);
+    const fw=(keys.KeyW?1:0)-(keys.KeyS?1:0),sd=(keys.KeyD?1:0)-(keys.KeyA?1:0);spr=(keys.ShiftLeft||keys.ShiftRight)&&fw>0&&!zm()?1:0;const sp=zm()?1.2:spr?5:3;
+    if(fw||sd){const l=Math.hypot(fw,sd),nx=p.x+(Math.cos(p.a)*fw-Math.sin(p.a)*sd)/l*sp*dt,nz=p.z+(Math.sin(p.a)*fw+Math.cos(p.a)*sd)/l*sp*dt;
+      if(!blocked(nx,p.z))p.x=nx;if(!blocked(p.x,nz))p.z=nz}
+    const g=G[S.eq],f=keys.Space||keys.Mouse?1:0;
+    if(rl&&t>=rl.end){S.ammo[rl.id]=MAG[rl.id];rl=0;T.rl++;msg("재장전 완료")}
+    if(f&&!spr&&!rl&&t-lastShot>=g.cd&&(g.a||!prevF)){if(ammo(g.id)>0)shoot(t);else startReload()}prevF=f;
+    // 상대 AI: 돌아다니기 + 사격
+    if(mode!="tut"&&mode!="human"&&Math.hypot(B.tx-B.x,B.tz-B.z)<.15){B.tx=1+Math.random()*8;B.tz=1+Math.random()*8}
+    const d=Math.hypot(B.tx-B.x,B.tz-B.z)||1,nx=B.x+(B.tx-B.x)/d*(mode=="human"?0:1)*dt,nz=B.z+(B.tz-B.z)/d*(mode=="human"?0:1)*dt;
+    if(!blocked(nx,B.z))B.x=nx;else B.tx=B.x;if(!blocked(B.x,nz))B.z=nz;else B.tz=B.z;
+    if(mode=="human")humanSync(dt);bot.position.set(B.x,0,B.z);const dd=Math.hypot(p.x-B.x,p.z-B.z);animBot(dt,dd);if(mode=="human")bot.rotation.y=Math.atan2(Math.cos(B.ra||0),Math.sin(B.ra||0));B.fire-=dt;
+    const bg2=G[B.eq],rng={권총:6,소총:8,저격총:14}[bg2.t];if(mode=="ai"&&B.fire<=0&&dd<rng){B.fire=bg2.cd/1000*1.6+.3;
+      const o=new THREE.Vector3(B.x,.85,B.z),dir=new THREE.Vector3(p.x-B.x,0,p.z-B.z).normalize();
+      const rc=new THREE.Raycaster(o,dir,0,dd);
+      if(!rc.intersectObjects(OBM)[0]&&Math.random()<Math.max(.12,.6-dd*.04-bg2.sp*2)){const rr=Math.random(),dm=bg2.d*.7*(rr<.1?2:rr<.3?.6:1);S.hp-=dm;$("red").style.opacity=1;setTimeout(()=>$("red").style.opacity=0,200)}}
+    if(S.hp<=0)endRound(0);
+    hitT-=dt*1000;if(hitT<=0)$("dot").style.background="#ff2a2a"}
+  const nf=zm()?G[S.eq].f:70;curF+=(nf-curF)*.3;if(Math.abs(cam.fov-curF)>.1){cam.fov=curF;cam.updateProjectionMatrix()}
+  const bb=Math.abs(Math.sin(bobT*.5))*(.012+.012*sprA)*bobA,pt2=Math.max(-1.2,Math.min(1.2,p.pt+rcP)),a2=p.a+rcY+Math.sin(bobT*.5)*.006*sprA*bobA;
+  cam.position.set(p.x,.85+bb,p.z);const cp=Math.cos(pt2);cam.lookAt(p.x+Math.cos(a2)*cp,.85+bb+Math.sin(pt2),p.z+Math.sin(a2)*cp);
+  const sc=zm()&&cam.fov<40;vm.visible=!sc;$("scope").style.display=sc?"block":"none";
+  $("st").innerHTML=`💰 ${S.coins} <br>${mode=="practice"?"연습장 · 처치 "+S.kills:mode=="tut"?"튜토리얼":"라운드 "+S.kills+" : "+B.kills+" (13선승)"}<br>무기: ${G[S.eq].n} (Q 변경)<br>이동 WASD · 시점 ←↑↓→ · 상점 B · 메뉴 Esc · 줌 Enter(저격총) · 뛰기 Shift(누른 채 W) · 재장전 Backspace`;
+  $("hp").textContent=`내 HP ${S.hp} · 상대 HP ${Math.max(0,B.hp)} · 상대 무기 ${G[B.eq].n} (${B.coins}💰)`;
+  $("tg").style.display=(mode=="tut"&&!menu)?"block":"none";if(mode=="tut"&&!menu)tutUpdate(dt);
+  const ga=G[S.eq],am=ammo(ga.id);
+  $("am").innerHTML=rl?`재장전 중... ${Math.min(100,((t-rl.t0)/(rl.end-rl.t0)*100)|0)}%`:`🔫 <b>${am}</b> / ${MAG[ga.id]}<br><small>재장전: Backspace</small>`;
+  const mv=(keys.KeyW||keys.KeyA||keys.KeyS||keys.KeyD)&&!shop&&!over?1:0;bobA+=(mv-bobA)*Math.min(1,dt*8);sprA+=(((spr&&!shop&&!over)?1:0)-sprA)*Math.min(1,dt*7);bobT+=dt*(9+6*sprA)*mv;
+  const da=p.a-lastA;lastA=p.a;swX+=(Math.max(-.04,Math.min(.04,-da*1.2))-swX)*Math.min(1,dt*10);
+  kick=Math.max(0,kick-dt*10);rcT-=dt;if(rcT<=0){const dc=Math.exp(-dt*8);rcP*=dc;rcY*=dc}else{rcP*=Math.exp(-dt*1.2)}flT-=dt;if(vm.userData.fl)vm.userData.fl.visible=flT>0;
+  const rp=rl?Math.min(1,(t-rl.t0)/(rl.end-rl.t0)):0,rs=Math.sin(rp*Math.PI);
+  vm.position.set(.2+swX+Math.sin(bobT*.5)*(.012+.02*sprA)*bobA-rs*.03-sprA*.05,-.2+Math.abs(Math.sin(bobT*.5))*(.01+.015*sprA)*bobA-rs*.1-sprA*.04,-.3+kick*.07+sprA*.02);
+  vm.rotation.set(kick*.1+rs*.5-sprA*.5,.04+swX*2+sprA*.55,Math.sin(bobT*.5)*(.015+.02*sprA)*bobA+rs*.3+sprA*.35);
+  const r2=Math.max(0,B.hp)/100;B.show=Math.max(0,(B.show||0)-dt);hb.visible=B.show>0&&B.hp>0;
+  hbf.scale.x=Math.max(.001,r2);hbf.position.x=-.25*(1-r2);hbf.material.color.setHSL(r2*.33,1,.5);
+  hb.position.set(B.x,1.2,B.z);hb.quaternion.copy(cam.quaternion);
+  r.render(scene,cam);requestAnimationFrame(loop)}
+setVM();requestAnimationFrame(loop);
+addEventListener("resize",()=>{r.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()});
+</script></body></html>
